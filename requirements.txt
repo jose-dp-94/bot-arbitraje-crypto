@@ -1,0 +1,4 @@
+ccxt
+python-binance
+cryptocom-exchange
+schedule
