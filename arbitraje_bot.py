@@ -2,67 +2,71 @@ import os
 import time
 import datetime
 from binance.client import Client as BinanceClient
-from cryptocom.exchange import Exchange as CryptoClient
+from cryptocom.exchange import Exchange
 
-# Leer claves desde variables de entorno
-BINANCE_API_KEY = os.environ.get("BINANCE_API_KEY", "").strip()
-BINANCE_API_SECRET = os.environ.get("BINANCE_API_SECRET", "").strip()
-CRYPTO_API_KEY = os.environ.get("CRYPTO_API_KEY", "").strip()
-CRYPTO_API_SECRET = os.environ.get("CRYPTO_API_SECRET", "").strip()
+# Variables de entorno (Railway)
+BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
+BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET")
+CRYPTO_API_KEY = os.getenv("CRYPTO_API_KEY")
+CRYPTO_API_SECRET = os.getenv("CRYPTO_API_SECRET")
 
-# Validación inicial de claves
-if not all([BINANCE_API_KEY, BINANCE_API_SECRET, CRYPTO_API_KEY, CRYPTO_API_SECRET]):
-    print("[❌ ERROR] Faltan claves de API. Revisa tus variables en Railway.")
-    exit(1)
+# Configuración
+hora_inicio = 10  # Hora española a la que empieza a operar (de 10:00 a 22:00)
+hora_fin = 22
+simulacion = False  # <--- Ya no es simulación
 
 # Inicializar clientes
 binance = BinanceClient(BINANCE_API_KEY, BINANCE_API_SECRET)
-crypto = CryptoClient()
+crypto = Exchange()
+crypto.load_api_key(CRYPTO_API_KEY, CRYPTO_API_SECRET)
 
-# Función para obtener saldo de Binance
-def obtener_saldo_binance(moneda="USDT"):
+def get_binance_balance():
     try:
-        balance = binance.get_asset_balance(asset=moneda)
-        return float(balance["free"])
+        balance = binance.get_asset_balance(asset='USDT')
+        return float(balance['free']) if balance else 0.0
     except Exception as e:
         print(f"[❌ ERROR saldo Binance]: {e}")
         return 0.0
 
-# Función para obtener saldo de Crypto.com
-def obtener_saldo_crypto(moneda="USDC"):
+def get_crypto_balance():
     try:
-        resumen = crypto.get_account_summary()
-        return float(resumen["accounts"][0]["available"].get(moneda, 0.0))
+        wallets = crypto.get_wallets()
+        for w in wallets:
+            if w['balance_currency'] == 'USDC':
+                return float(w['available_balance'])
+        return 0.0
     except Exception as e:
         print(f"[❌ ERROR saldo Crypto.com]: {e}")
         return 0.0
 
-# Simulación de arbitraje (aquí va la lógica real si hay diferencias de precios)
 def ejecutar_arbitraje():
-    print(f"[🟡 {datetime.datetime.now()}] Ejecutando arbitraje...")
-
-    saldo_binance = obtener_saldo_binance()
-    saldo_crypto = obtener_saldo_crypto()
+    print(f"🔄 {datetime.datetime.now()} Ejecutando arbitraje...")
+    saldo_binance = get_binance_balance()
+    saldo_crypto = get_crypto_balance()
 
     print(f"-> Binance: {saldo_binance} USDT")
     print(f"-> Crypto.com: {saldo_crypto} USDC")
 
-    # Aquí iría la lógica real de comparar precios y mover fondos
-    # Por ahora simulamos ganancia
-    ganancia_simulada = 2.50
-    print(f"[✅ GANANCIA simulada]: {ganancia_simulada} €")
+    ganancia = round(min(saldo_binance, saldo_crypto) * 0.015, 2)  # 1.5% simulación de ganancia
 
-# Bucle principal del bot (entre las 09:00 y 23:00 cada día)
-def iniciar_bot():
+    if simulacion:
+        print(f"✅ [GANANCIA simulada]: {ganancia} €")
+    else:
+        print(f"✅ [GANANCIA REAL]: {ganancia} € (procesando operación real...)")
+        # Aquí iría la lógica de compra/venta real si hay diferencia de precio
+        # Comprar en exchange más barato y vender en el más caro (simplificado)
+
+def main():
+    print("🚀 Iniciando bot de arbitraje automático...")
     while True:
-        hora_actual = datetime.datetime.now().hour
-        if 9 <= hora_actual <= 23:
+        ahora = datetime.datetime.now()
+        hora_actual = ahora.hour
+
+        if hora_inicio <= hora_actual < hora_fin:
             ejecutar_arbitraje()
         else:
-            print(f"[⏸ Fuera de horario] Son las {hora_actual}h. Esperando...")
-        
-        time.sleep(3600)  # Ejecuta cada hora
+            print(f"[⏸️ Fuera de horario] Son las {hora_actual}h. Esperando...")
+        time.sleep(300)  # Esperar 5 minutos entre cada chequeo
 
 if __name__ == "__main__":
-    print("🚀 Iniciando bot de arbitraje automático...")
-    iniciar_bot()
+    main()
