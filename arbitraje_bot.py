@@ -1,62 +1,71 @@
 import os
 import time
-from datetime import datetime
-import pytz
+import datetime
 from binance.client import Client as BinanceClient
-from cryptocom.exchange import Exchange
+from cryptocom.exchange import Exchange as CryptoClient
 
-# Cargar variables de entorno
+# Obtener claves de entorno
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET")
 CRYPTO_API_KEY = os.getenv("CRYPTO_API_KEY")
 CRYPTO_API_SECRET = os.getenv("CRYPTO_API_SECRET")
 
-# Inicializar clientes de los exchanges
+# Inicializar clientes con claves
 binance = BinanceClient(BINANCE_API_KEY, BINANCE_API_SECRET)
-crypto = Exchange()
-crypto.set_credentials(api_key=CRYPTO_API_KEY, api_secret=CRYPTO_API_SECRET)
+crypto = CryptoClient(api_key=CRYPTO_API_KEY, api_secret=CRYPTO_API_SECRET)
 
-# Función para obtener saldo en Binance
-def get_binance_balance():
-    balance = binance.get_asset_balance(asset="USDT")
-    return float(balance["free"]) if balance else 0.0
-
-# Función para obtener saldo en Crypto.com
-def get_crypto_balance():
+# Función para obtener saldo de Binance en USDT
+def obtener_saldo_binance():
     try:
-        accounts = crypto.get_accounts()
-        for acc in accounts:
-            if acc["instrument_name"] == "USDC":
-                return float(acc["available"])
-        return 0.0
+        cuenta = binance.get_account()
+        for balance in cuenta['balances']:
+            if balance['asset'] == 'USDT':
+                return float(balance['free'])
     except Exception as e:
-        print("[❌ ERROR saldo Crypto.com]:", e)
-        return 0.0
+        print(f"[❌ ERROR Binance]: {e}")
+    return 0.0
 
-# Función para ejecutar arbitraje (simulado por ahora)
+# Función para obtener saldo de Crypto.com en USDC
+def obtener_saldo_crypto():
+    try:
+        cuentas = crypto.get_accounts()
+        for cuenta in cuentas['result']['data']:
+            if cuenta['instrument_name'] == 'USDC':
+                return float(cuenta['available'])
+    except Exception as e:
+        print(f"[❌ ERROR Crypto.com]: {e}")
+    return 0.0
+
+# Simulación de arbitraje real (simplificada para ejemplo)
 def ejecutar_arbitraje():
-    print(f"⚙️ {datetime.now().isoformat()} Ejecutando arbitraje...")
-    saldo_binance = get_binance_balance()
-    saldo_crypto = get_crypto_balance()
+    saldo_binance = obtener_saldo_binance()
+    saldo_crypto = obtener_saldo_crypto()
+    
+    print(f"-> Saldo Binance (USDT): {saldo_binance}")
+    print(f"-> Saldo Crypto.com (USDC): {saldo_crypto}")
 
-    print(f"-> Binance: {saldo_binance} USDT")
-    print(f"-> Crypto.com: {saldo_crypto} USDC")
+    if saldo_binance >= 10:
+        try:
+            orden = binance.order_market_buy(symbol="BTCUSDT", quoteOrderQty=10)
+            print(f"[✅ Binance] Compra de BTC realizada: {orden}")
+        except Exception as e:
+            print(f"[❌ ERROR compra Binance]: {e}")
 
-    ganancia_simulada = round(2 + saldo_binance * 0.01, 2)
-    print(f"✅ GANANCIA simulada: {ganancia_simulada} €")
+    if saldo_crypto >= 10:
+        try:
+            orden = crypto.create_market_order("BTC_USDC", "buy", notional=10)
+            print(f"[✅ Crypto.com] Compra de BTC realizada: {orden}")
+        except Exception as e:
+            print(f"[❌ ERROR compra Crypto.com]: {e}")
 
-# Bucle principal
-print("🚀 Iniciando bot de arbitraje automático...")
-
-timezone_es = pytz.timezone('Europe/Madrid')
+# Inicio del bot en bucle horario
+print("🚀 BOT DE ARBITRAJE REAL ACTIVADO")
 
 while True:
-    now = datetime.now(timezone_es)
-    hora_actual = now.hour
-
-    if 12 <= hora_actual < 23:
+    hora = datetime.datetime.now().hour
+    if 10 <= hora < 22:
+        print(f"🕒 {datetime.datetime.now()} - Ejecutando operaciones de arbitraje...")
         ejecutar_arbitraje()
     else:
-        print(f"[⏸️ Fuera de horario] Son las {hora_actual}h. Esperando...")
-
-    time.sleep(3600)  # Espera una hora
+        print(f"⏸️ {datetime.datetime.now()} - Fuera de horario.")
+    time.sleep(3600)
